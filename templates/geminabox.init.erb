@@ -1,5 +1,5 @@
 #!/bin/bash
- 
+
 ### BEGIN INIT INFO
 # Provides:          geminabox
 # Required-Start:    $local_fs $remote_fs $network
@@ -11,7 +11,7 @@
 ### END INIT INFO
 
 # Source function library.
-. /etc/rc.d/init.d/functions
+. /lib/lsb/init-functions
 
 if [ -s "$HOME/.rvm/scripts/rvm" ] ; then
     source "$HOME/.rvm/scripts/rvm"
@@ -30,8 +30,11 @@ if [ $RETVAL -ne 0 ]; then
   echo "Ruby $RUBY_VERSION is not installed and unable to install, exiting"
   exit 1
 fi
-rvm use $RUBY_VERSION
- 
+# rvm use $RUBY_VERSION
+RVM_ENVIRONMENT=`rvm env --path -- ruby-version $RUBY_VERSION`
+source $RVM_ENVIRONMENT
+DAEMON_PATH=`which thin|sed s/bin/wrappers/`
+
 LANG="en_US.UTF-8"
 NAME="<%=@service_name%>"
 SCRIPT_NAME="<%=@init_script%>"
@@ -39,7 +42,7 @@ GEMINABOX_HOME="<%=@data_dir%>"
 GEMINABOX_CONFIG="<%=@config_dir%>/<%=@service_name%>.ru"
 PID_FILE="<%=@pid_file%>"
 LOG_FILE="<%=@log_file%>"
-DAEMON="thin <%=@thin_options%>"
+DAEMON="$DAEMON_PATH -d"
 USER="<%=@user%>"
 GROUP="<%=@group%>"
 PORT="<%=@port%>"
@@ -49,13 +52,13 @@ PORT="<%=@port%>"
 http_proxy="<%=@proxy_url%>"
 export http_proxy
 <% end -%>
- 
+
 start() {
   $DAEMON --tag $NAME -u $USER -g $GROUP -c $GEMINABOX_HOME -l $LOG_FILE -P $PID_FILE -p $PORT -R $GEMINABOX_CONFIG start
 }
 
 stop() {
-  su $USER -c "$DAEMON --tag $NAME -u $USER -g $GROUP -c $GEMINABOX_HOME -l $LOG_FILE -P $PID_FILE -p $PORT -R $GEMINABOX_CONFIG stop" && \
+  $DAEMON --tag $NAME -u $USER -g $GROUP -c $GEMINABOX_HOME -l $LOG_FILE -P $PID_FILE -p $PORT -R $GEMINABOX_CONFIG stop && \
   rm $PID_FILE
 }
 
@@ -67,9 +70,7 @@ case "$1" in
         stop
         ;;
   status)
-        status -p $PID_FILE geminabox
-        RETVAL=$?
-        exit $RETVAL
+        status_of_proc -p $PID_FILE $DAEMON_PATH $NAME && exit 0 || exit $?
         ;;
   restart)
         stop
